@@ -1,4 +1,6 @@
+using Newtonsoft.Json.Schema;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 
 namespace Multislider
@@ -29,27 +31,38 @@ namespace Multislider
         internal Sprite sliderSprite;
         internal Color sliderColor;
 
-        public delegate void Event<T>(T data);
-        public delegate void Event<T, U>(T data1, U data2);
-        public delegate void SliderEvent(MultisliderElement element);
-        public delegate void SliderEvent<T>(MultisliderElement element, T data);
-        public delegate void SliderBarEvent(MultisliderBar element);
-        public delegate void SliderBarEvent<T>(MultisliderBar element, T data);
-        public delegate void SliderBarEvent<T, U>(MultisliderBar element, T data1 , U data2);
+        #region events
 
-        public event Event<float> OnSliderDistanceChange;
-        public event Event<float, float> OnValueRangeChange;
-        public event Event<float, float> OnLimitRangeChange;
-        public event SliderEvent OnCreateSlider;
-        public event SliderEvent OnDestroySlider;
-        public event SliderEvent OnStartDraggingSlider;
-        public event SliderEvent<float> OnDraggingSlider;
-        public event SliderEvent<float> OnSliderValueChange;
-        public event SliderEvent OnStopDraggingSlider;
-        public event SliderEvent<float> OnSliderWidthChange;
-        public event SliderBarEvent<Vector2> OnBarSizeChange;
+        public delegate void OnSliderDistanceChangeEvent(float delta);
+        public delegate void OnValueRangeChangeEvent(float minLimit, float maxLimit);
+        public delegate void OnLimitRangeChangeEvent(float minLimit, float maxLimit);
+        public delegate void OnCreateSliderEvent(MultisliderElement element);
+        public delegate void OnDestroySliderEvent(MultisliderElement element);
+        public delegate void OnStartDraggingSliderEvent(MultisliderElement element);
+        public delegate void OnStopDraggingSliderEvent(MultisliderElement element);
+        public delegate void OnDraggingSliderEvent(MultisliderElement element, float delta);
+        public delegate void OnSliderValueChangeEvent(MultisliderElement element, float delta);
+        public delegate void OnSliderWidthChangeEvent(MultisliderElement element, float width);
+        public delegate void OnBarSizeChangeEvent(MultisliderBar bar, Vector2 size);
 
-        private float _minLimit = 0;
+        public event OnSliderDistanceChangeEvent OnSliderDistanceChange;
+        public event OnValueRangeChangeEvent OnValueRangeChange;
+        public event OnLimitRangeChangeEvent OnLimitRangeChange;
+        public event OnCreateSliderEvent OnCreateSlider;
+        public event OnDestroySliderEvent OnDestroySlider;
+        public event OnStartDraggingSliderEvent OnStartDraggingSlider;
+        public event OnStopDraggingSliderEvent OnStopDraggingSlider;
+        public event OnDraggingSliderEvent OnDraggingSlider;
+        public event OnSliderValueChangeEvent OnSliderValueChange;
+        public event OnSliderWidthChangeEvent OnSliderWidthChange;
+        public event OnBarSizeChangeEvent OnBarSizeChange;
+
+        #endregion
+        #region settings
+
+        /// <summary>
+        /// absolute minimum Limit of the slidebar-range
+        /// </summary>
         public float minLimit
         {
             get => _minLimit;
@@ -60,7 +73,11 @@ namespace Multislider
                 OnLimitRangeChange.Invoke(_minLimit, _maxLimit);
             }
         }
-        private float _maxLimit = 100;
+        private float _minLimit = 0;
+
+        /// <summary>
+        /// absolute maximum Limit of the slidebar-range
+        /// </summary>
         public float maxLimit
         {
             get => _maxLimit;
@@ -71,8 +88,12 @@ namespace Multislider
                 OnLimitRangeChange.Invoke(_minLimit, _maxLimit);
             }
         }
+        private float _maxLimit = 100;
 
-        private float _minValue = 0;
+        /// <summary>
+        /// dynamic minimum Limit of the slidebar-range. Value gets fitted to decimal- or multiples-setting
+        /// Must be in Range between <see cref="minLimit"/> and <see cref="maxLimit"/>
+        /// </summary>
         public float minValue
         {
             get => _minValue;
@@ -83,7 +104,12 @@ namespace Multislider
                 OnValueRangeChange.Invoke(_minValue, _maxValue);
             }
         }
-        private float _maxValue = 100;
+        private float _minValue = 0;
+
+        /// <summary>
+        /// Dynamic maximum Limit of the slidebar-range. Value gets fitted to decimal- or multiples-setting.
+        /// Must be in Range between <see cref="minLimit"/> and <see cref="maxLimit"/>
+        /// </summary>
         public float maxValue
         {
             get => _maxValue;
@@ -94,19 +120,25 @@ namespace Multislider
                 OnValueRangeChange.Invoke(_minValue, _maxValue);
             }
         }
+        private float _maxValue = 100;
 
-        private float _minWidth = 1;
-        public float minWidth
+        /// <summary>
+        /// Width of all the sliders
+        /// </summary>
+        public float sliderWidth
         {
-            get => _minWidth;
+            get => _sliderWidth;
             set
             {
-                _minWidth = Round(value, true);
+                _sliderWidth = Round(value, true);
                 updateWidth();
             }
         }
+        private float _sliderWidth = 1;
 
-        private float _minDistance = 1;
+        /// <summary>
+        /// The minimum distance each slider has to each other
+        /// </summary>
         public float minDistance
         {
             get => _minDistance;
@@ -120,6 +152,12 @@ namespace Multislider
                 OnSliderDistanceChange.Invoke(_minDistance);
             }
         }
+        private float _minDistance = 1;
+
+        /// <summary>
+        /// The smallest logical width of a slider calculated from the range between 
+        /// <see cref="minValue"/> and <see cref="maxValue"/>, and <see cref="minDistance"/>.
+        /// </summary>
         public float sliderMinWidth
         {
             get
@@ -132,13 +170,10 @@ namespace Multislider
                     return bar.rect.width / 2;
             }
         }
-        public float absoluteSliderWidth
-        {
-            get => Round(minWidth);
-            //get => Round((sliderMinWidth < minWidth) ? minWidth : sliderMinWidth);
-        }
 
-        private int _decimals = 0;
+        /// <summary>
+        /// Sets the amount of decimals behind the point. Values with more decimals get rounded
+        /// </summary>
         public int decimals
         {
             get => _decimals;
@@ -150,12 +185,16 @@ namespace Multislider
 
                 minValue = minValue;
                 maxValue = maxValue;
-                minWidth = minWidth;
+                sliderWidth = sliderWidth;
                 minDistance = minDistance;
             }
         }
+        private int _decimals = 0;
 
-        private int _multiples = 0;
+        /// <summary>
+        /// Sets the value which is the multiplicator of all other values.
+        /// If a value is not dividable by <see cref="multiples"/> it gets rounded to the nearest.
+        /// </summary>
         public int multiples
         {
             get => _multiples;
@@ -167,17 +206,48 @@ namespace Multislider
 
                 minValue = minValue;
                 maxValue = maxValue;
-                minWidth = minWidth;
+                sliderWidth = sliderWidth;
                 minDistance = minDistance;
             }
         }
+        private int _multiples = 0;
 
-        private void Awake()
+        #endregion
+
+        #region Slider
+
+        /// <summary>
+        /// get the values of all slider
+        /// </summary>
+        /// <returns>a float array of all slider values</returns>
+        public float[] getSlider()
         {
-            rect = GetComponent<RectTransform>();
-            bar = transform.GetChild(0).GetComponent<RectTransform>();
+            return sliderElements.Select(x => x.value).ToArray();
         }
 
+        /// <summary>
+        /// quick way for creating or modifiying the set of sliders in one step
+        /// </summary>
+        /// <param name="slider">a set of slider values for the multislider to set</param>
+        public void setSlider(IEnumerable<float> slider)
+        {
+            while (slider.Count() > sliderElements.Count())
+                addSlider();
+            while (slider.Count() < sliderElements.Count())
+                removeSlider(sliderElements.Last());
+
+            int i = 0;
+            foreach(float value in slider)
+                sliderElements[i].setValueNoChange(value);
+
+            updateSliderOrder();
+            updateSliderPos();
+        }
+
+        /// <summary>
+        /// Removes a slider from the slidebar
+        /// </summary>
+        /// <param name="slider">the slider to be removed</param>
         public void removeSlider(MultisliderElement slider)
         {
             sliderElements.Remove(slider);
@@ -189,19 +259,16 @@ namespace Multislider
             OnDestroySlider.Invoke(slider);
         }
 
-        public void addSlider()
+        /// <summary>
+        /// Adds a new slider to the slidebar
+        /// </summary>
+        /// <param name="value">initial value of the new slider. Default is <see cref="minValue"/></param>
+        public void addSlider(float value = float.NaN)
         {
-            MultisliderElement msc;
-            if (Application.isPlaying)
-                msc = GameObject.Instantiate(CentreBrain.data.Prefabs["WindowModuleMultiSliderSlider"],
-                                                         bar.transform).GetComponent<MultisliderElement>();
-            else
-            {
-                msc = GameObject.Instantiate(Resources.Load("Components/Multislider/Prefab/Slider") as GameObject,
+            MultisliderElement msc = GameObject.Instantiate(Resources.Load("Components/Multislider/Prefab/Slider") as GameObject,
                     bar.transform).GetComponent<MultisliderElement>();
+            if (!Application.isPlaying)
                 msc.Awake();
-            }
-
 
             msc.slider = this;
             msc.updateWidth();
@@ -210,14 +277,21 @@ namespace Multislider
                 minDistance = (maxValue - minValue) / (sliderElements.Count);
 
             sliderElements.Add(msc);
+
             updateSliderOrder();
 
-            msc.moveElement(minValue, true);
+            if (float.IsNaN(value))
+                value = minValue;
+            msc.moveElement(value, true);
             updateSliderPos();
 
             OnCreateSlider.Invoke(msc);
         }
 
+        /// <summary>
+        /// Updates the color of all sliders
+        /// </summary>
+        /// <param name="color">the color to be used</param>
         public void updateSliderColor(Color color)
         {
             for (int i = 0; i < sliderElements.Count; i++)
@@ -227,6 +301,10 @@ namespace Multislider
             }
         }
 
+        /// <summary>
+        /// updates the sprite of all sliders
+        /// </summary>
+        /// <param name="sprite">the sprite to be used</param>
         public void updateSliderSprite(Sprite sprite)
         {
             for (int i = 0; i < sliderElements.Count; i++)
@@ -236,6 +314,9 @@ namespace Multislider
             }
         }
 
+        /// <summary>
+        /// sorts all slider depending on their positions
+        /// </summary>
         public void updateSliderOrder()
         {
             MultiSlideElementComparer msec = new MultiSlideElementComparer();
@@ -243,6 +324,9 @@ namespace Multislider
             updateSliderLimits();
         }
 
+        /// <summary>
+        /// updates all left and right neighbours for all sliders
+        /// </summary>
         public void updateSliderLimits()
         {
             for (int i = 0; i < sliderElements.Count; i++)
@@ -253,6 +337,9 @@ namespace Multislider
             }
         }
 
+        /// <summary>
+        /// recalculates the positions of all sliders depending on the value
+        /// </summary>
         public void updateSliderPos()
         {
             for (int i = 0; i < sliderElements.Count; i++)
@@ -270,6 +357,9 @@ namespace Multislider
             }
         }
 
+        /// <summary>
+        /// updates the width of all sliders
+        /// </summary>
         public void updateSliderWidth()
         {
             for (int i = 0; i < sliderElements.Count; i++)
@@ -279,53 +369,100 @@ namespace Multislider
             }
         }
 
+        /// <summary>
+        /// updates the width of all sliders and then updates their positions to account for minimum distance
+        /// </summary>
         public void updateWidth()
         {
             updateSliderWidth();
             updateSliderPos();
         }
 
+        #endregion
+
+        #region intern event-calls
+
+        //-----------------------------------
+        // use only for internal classes
+        //-----------------------------------
+
+        /// <summary>
+        /// Event-Switch for triggering Events started by other classes
+        /// </summary>
+        /// <param name="mse"></param>
         internal void startDraggingSlider(MultisliderElement mse)
         {
             OnStartDraggingSlider.Invoke(mse);
         }
 
+        /// <summary>
+        /// Event-Switch for triggering Events started by other classes
+        /// </summary>
+        /// <param name="mse"></param>
         internal void stopDraggingSlider(MultisliderElement mse)
         {
             OnStopDraggingSlider.Invoke(mse);
         }
 
+        /// <summary>
+        /// Event-Switch for triggering Events started by other classes
+        /// </summary>
+        /// <param name="mse"></param>
         internal void draggingSlider(MultisliderElement mse, float delta)
         {
             OnDraggingSlider.Invoke(mse, delta);
         }
 
+        /// <summary>
+        /// Event-Switch for triggering Events started by other classes
+        /// </summary>
+        /// <param name="mse"></param>
         internal void movingSlider(MultisliderElement mse, float delta)
         {
             OnSliderValueChange.Invoke(mse, delta);
         }
 
+        /// <summary>
+        /// Event-Switch for triggering Events started by other classes
+        /// </summary>
+        /// <param name="mse"></param>
         internal void sliderWidthChange(MultisliderElement mse, float width)
         {
             OnSliderWidthChange.Invoke(mse, width);
         }
 
+        /// <summary>
+        /// Event-Switch for triggering Events started by other classes
+        /// </summary>
+        /// <param name="mse"></param>
         internal void barSizeChange(MultisliderBar bar, Vector2 sizeDelta)
         {
             OnBarSizeChange.Invoke(bar, sizeDelta);
         }
 
+        #endregion
+
+        #region math functions
+
+        /// <summary>
+        /// rounds the value to either the nearest decimal of <see cref="decimals"/> 
+        /// or the nearest multiple of <see cref="multiples"/>
+        /// </summary>
+        /// <param name="value">the value to be rounded</param>
+        /// <param name="noNull">if true, the <paramref name="value"/> 
+        ///     will be rounded up to the next possible non-null value</param>
+        /// <returns></returns>
         public float Round(float value, bool noNull = false)
         {
             if (decimals == 0)
             {
-                value = value.Multiples(multiples);
+                value = Mathf.Round(value / multiples) * multiples;
                 if (noNull && value == 0)
                     value = multiples;
             }
             else
             {
-                value = value.Round(decimals);
+                value = (float)System.Math.Round((double)value, decimals);
                 if (noNull && value == 0)
                     value = Mathf.Pow(10, decimals);
             }
@@ -333,17 +470,25 @@ namespace Multislider
             return value;
         }
 
+        /// <summary>
+        /// rounds the value to either the next lower decimal of <see cref="decimals"/> 
+        /// or the next lower multiple of <see cref="multiples"/>
+        /// </summary>
+        /// <param name="value">the value to be rounded</param>
+        /// <param name="noNull">if true, the <paramref name="value"/> 
+        ///     will be rounded up to the next possible non-null value</param>
+        /// <returns></returns>
         public float Floor(float value, bool noNull = false)
         {
             if (decimals == 0)
             {
-                value = value.FloorMultiples(multiples);
+                value = Mathf.Floor(value / multiples) * multiples;
                 if (noNull && value == 0)
                     value = multiples;
             }
             else
             {
-                value = value.FloorRound(decimals);
+                value = Mathf.Floor(value * Mathf.Pow(10, decimals)) / Mathf.Pow(10, decimals);
                 if (noNull && value == 0)
                     value = Mathf.Pow(10, decimals);
             }
@@ -351,17 +496,25 @@ namespace Multislider
             return value;
         }
 
+        /// <summary>
+        /// rounds the value to either the next higehr decimal of <see cref="decimals"/> 
+        /// or the next higher multiple of <see cref="multiples"/>
+        /// </summary>
+        /// <param name="value">the value to be rounded</param>
+        /// <param name="noNull">if true, the <paramref name="value"/> 
+        ///     will be rounded up to the next possible non-null value</param>
+        /// <returns></returns>
         public float Ceil(float value, bool noNull = false)
         {
             if (decimals == 0)
             {
-                value = value.CeilMultiples(multiples);
+                value = Mathf.Ceil(value / multiples) * multiples;
                 if (noNull && value == 0)
                     value = multiples;
             }
             else
             {
-                value = value.CeilRound(decimals);
+                value = Mathf.Ceil(value * Mathf.Pow(10, decimals)) / Mathf.Pow(10, decimals);
                 if (noNull && value == 0)
                     value = Mathf.Pow(10, decimals);
             }
@@ -369,11 +522,13 @@ namespace Multislider
             return value;
         }
 
-        private void Update()
+        #endregion
+
+        private void Awake()
         {
-            if (rect.hasChanged)
-                updateSliderPos();
-            rect.hasChanged = false;
+            rect = GetComponent<RectTransform>();
+            bar = transform.GetChild(0).GetComponent<RectTransform>();
         }
+
     }
 }

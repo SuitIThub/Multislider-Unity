@@ -1,7 +1,5 @@
-using DisplayScreen;
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
+using static Multislider.MultisliderCore;
 
 namespace Multislider
 {
@@ -9,11 +7,14 @@ namespace Multislider
     public class MultisliderBar : MonoBehaviour
     {
         public MultisliderCore slider;
+        public OnBarSizeChangeEvent OnBarSizeChangeEvent;
 
         [ExecuteInEditMode]
         private void OnRectTransformDimensionsChange()
         {
             slider.updateWidth();
+            slider.barSizeChange(this, slider.bar.sizeDelta);
+            OnBarSizeChangeEvent.Invoke(this, slider.bar.sizeDelta);
         }
     }
 }

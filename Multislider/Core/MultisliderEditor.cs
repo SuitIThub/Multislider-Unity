@@ -1,12 +1,5 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.UI;
 using UnityEditor;
-using UnityEditorInternal;
-using UnityEditor.TerrainTools;
-using System.Runtime.InteropServices;
-using UnityEngine.UIElements;
 
 namespace Multislider
 {
@@ -14,20 +7,23 @@ namespace Multislider
     [RequireComponent(typeof(RectTransform), typeof(UnityEngine.UI.Image))]
     public class MultisliderEditor : Editor
     {
-        private const float SLIDER_TIMEOUT = 1f;
         private bool sliderFoldout = true;
-        private float slider_drag_timer = float.NaN;
 
         public override void OnInspectorGUI()
         {
             MultisliderCore script = (MultisliderCore)(object)target;
 
+            //Setting of Multislider RectTransform
             OnRectComponent("Multislider", script.rect, false);
             if (script.rect == null)
                 script.rect = script.GetComponent<RectTransform>();
 
-            OnRectComponent("Slider Bar", script.bar);
+            //Setting of Multislider Slidebar
+            RectTransform newRect = OnRectComponent("Slider Bar", script.bar);
+            if (script.bar != newRect && (newRect == null || newRect.GetComponent<MultisliderBar>() != null))
+                script.bar = newRect;
 
+            //Setting of all slider-handles
             Color sliderColor = script.sliderColor;
             Sprite sliderSprite = script.sliderSprite;
             OnRectComponent("Slider-Handle", null, ref sliderColor, ref sliderSprite, false);
@@ -44,11 +40,13 @@ namespace Multislider
 
             if (script.rect != null && script.bar != null)
             {
+                //Setting of decimals
                 int newDecimals = script.decimals;
                 OnSlider("Decimals", 0, 10, ref newDecimals);
                 if (newDecimals != script.decimals)
                     script.decimals = newDecimals;
 
+                //Setting of multiples
                 EditorGUI.BeginDisabledGroup(script.decimals != 0);
                 int newMultiples = script.multiples;
                 OnSlider("Multiples", 1, 10, ref newMultiples);
@@ -56,6 +54,7 @@ namespace Multislider
                     script.multiples = newMultiples;
                 EditorGUI.EndDisabledGroup();
 
+                //Setting of minimum distance between sliders
                 if (float.IsNaN(script.minDistance))
                     script.minDistance = 0;
                 float newSliderDist = script.minDistance;
@@ -72,20 +71,22 @@ namespace Multislider
                     script.updateSliderPos();
                 }
 
-                if (float.IsNaN(script.minWidth))
-                    script.minWidth = script.Ceil(0, true);
-                float newSliderWidth = script.minWidth;
+                //Setting of slider-handle width
+                if (float.IsNaN(script.sliderWidth))
+                    script.sliderWidth = script.Ceil(0, true);
+                float newSliderWidth = script.sliderWidth;
                 float sliderMin = script.sliderMinWidth;
                 float sliderMax = script.Floor(script.bar.rect.width / 2);
                 if (float.IsInfinity(sliderMin) || sliderMin > sliderMax)
                     sliderMin = sliderMax;
                 OnSlider("Slider Min Width", script.Ceil(sliderMin, true), sliderMax, ref newSliderWidth);
-                if (newSliderWidth != script.minWidth)
+                if (newSliderWidth != script.sliderWidth)
                 {
-                    script.minWidth = newSliderWidth;
+                    script.sliderWidth = newSliderWidth;
                     script.updateWidth();
                 }
 
+                //Setting of slidebar-range
                 if (float.IsNaN(script.minValue))
                     script.minValue = script.minLimit;
                 if (float.IsNaN(script.maxValue))
@@ -102,14 +103,12 @@ namespace Multislider
                     script.updateSliderPos();
                 }
 
-                if (!float.IsNaN(slider_drag_timer))
-                    slider_drag_timer -= Time.deltaTime;
-
+                //List of all sliders
                 sliderFoldout = EditorGUILayout.BeginFoldoutHeaderGroup(sliderFoldout, "Slider", EditorStyles.foldoutHeader);
                 if (sliderFoldout)
                 {
                     EditorGUILayout.BeginVertical(EditorStyles.helpBox);
-                    if (/*Application.isPlaying && */GUILayout.Button("+"))
+                    if (GUILayout.Button("+"))
                         script.addSlider();
                     for (int i = 0; i < script.sliderElements.Count; i++)
                     {
@@ -121,7 +120,8 @@ namespace Multislider
                         if (newVal != msc.value)
                         {
                             msc.moveElement(newVal, true);
-                            slider_drag_timer = SLIDER_TIMEOUT;
+                            script.updateSliderOrder();
+                            script.updateSliderPos();
                         }
 
                         if (GUILayout.Button("-"))
@@ -132,16 +132,10 @@ namespace Multislider
                     EditorGUILayout.EndVertical();
                 }
                 EditorGUILayout.EndFoldoutHeaderGroup();
-
-                if (!float.IsNaN(slider_drag_timer) && slider_drag_timer <= 0)
-                {
-                    script.updateSliderOrder();
-                    script.updateSliderPos();
-                }
             }
             else
             {
-                EditorGUILayout.LabelField("Components missing");
+                EditorGUILayout.HelpBox("Components missing", MessageType.Error);
             }
         }
 
@@ -184,7 +178,8 @@ namespace Multislider
             EditorGUILayout.EndHorizontal();
         }
 
-        public void OnRectComponent(string title, RectTransform rect, ref Color color, ref Sprite sprite, bool rectIsChangeable = true)
+        public RectTransform OnRectComponent(string title, RectTransform rect, ref Color color, ref Sprite sprite,
+                                    bool rectIsChangeable = true, bool rectSwitch = false)
         {
             EditorGUILayout.BeginHorizontal(EditorStyles.helpBox);
             EditorGUILayout.BeginVertical();
@@ -193,29 +188,30 @@ namespace Multislider
             {
                 EditorGUI.BeginDisabledGroup(!rectIsChangeable);
                 rect = (RectTransform)EditorGUILayout.ObjectField(rect, typeof(RectTransform), true);
+
                 EditorGUI.EndDisabledGroup();
             }
 
             Color c = color;
             Sprite s = sprite;
 
-            c = EditorGUILayout.ColorField(c);
+            if (!rectSwitch || rect != null)
+                c = EditorGUILayout.ColorField(c);
+
             EditorGUILayout.EndVertical();
-            s = (Sprite)EditorGUILayout.ObjectField(s, typeof(Sprite), true, GUILayout.Width(60), GUILayout.Height(60));
+
+            if (!rectSwitch || rect != null)
+                s = (Sprite)EditorGUILayout.ObjectField(s, typeof(Sprite), true, GUILayout.Width(60),
+                                                        GUILayout.Height(60));
             color = c;
             sprite = s;
             EditorGUILayout.EndHorizontal();
+
+            return rect;
         }
 
-        public void OnRectComponent(string title, RectTransform rect, bool rectIsChangeable = true)
+        public RectTransform OnRectComponent(string title, RectTransform rect, bool rectIsChangeable = true)
         {
-            EditorGUILayout.BeginHorizontal(EditorStyles.helpBox);
-            EditorGUILayout.BeginVertical();
-            EditorGUILayout.LabelField(title);
-            EditorGUI.BeginDisabledGroup(!rectIsChangeable);
-            rect = (RectTransform)EditorGUILayout.ObjectField(rect, typeof(RectTransform), true);
-            EditorGUI.EndDisabledGroup();
-
             Color c = Color.white;
             Sprite s = null;
             UnityEngine.UI.Image image = null;
@@ -225,19 +221,16 @@ namespace Multislider
                 c = image.color;
                 s = image.sprite;
             }
-            EditorGUI.BeginDisabledGroup(image == null);
-            c = EditorGUILayout.ColorField(c);
-            EditorGUI.EndDisabledGroup();
-            EditorGUILayout.EndVertical();
-            EditorGUI.BeginDisabledGroup(image == null);
-            s = (Sprite)EditorGUILayout.ObjectField(s, typeof(Sprite), true, GUILayout.Width(60), GUILayout.Height(60));
-            EditorGUI.EndDisabledGroup();
+
+            rect = OnRectComponent(title, rect, ref c, ref s, rectIsChangeable, true);
+
             if (image != null)
             {
                 image.color = c;
                 image.sprite = s;
             }
-            EditorGUILayout.EndHorizontal();
+
+            return rect;
         }
     }
 }
