@@ -1,0 +1,10 @@
+{
+  "name": "com.SuIT.Multislider",
+  "version": "1.0.0",
+  "dependencies": {},
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/SuitIThub/Multislider-Unity.git"
+  },
+  "unity": "2021.3"
+}
