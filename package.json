@@ -14,5 +14,6 @@
     "url": "https://github.com/SuitIThub/Multislider-Unity.git"
   },
   "changelogUrl": "https://github.com/SuitIThub/Multislider-Unity/blob/main/CHANGELOG.md",
-  "licensesUrl": "https://github.com/SuitIThub/Multislider-Unity/blob/main/LICENSE"
+  "licensesUrl": "https://github.com/SuitIThub/Multislider-Unity/blob/main/LICENSE",
+  "documentationUrl": "https://suitithub.github.io/Multislider-Unity/Documentation/html/index.html"
 }
